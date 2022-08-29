@@ -491,6 +491,7 @@ def run(
             m.inplace = inplace
             m.dynamic = dynamic
             m.export = True
+            m.ppfinal = False
 
     for _ in range(2):
         y = model(im)  # dry runs

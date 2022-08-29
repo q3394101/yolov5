@@ -174,14 +174,16 @@ class ComputeLoss:
 
         return (lbox + lobj + lcls) * bs, torch.cat((lbox, lobj, lcls)).detach()
 
+    # p:[1,3,80,80,85; 1,3,40,40,85; 1,3,20,20,85]
     def build_targets(self, p, targets):
         # Build targets for compute_loss(), input targets(image,class,x,y,w,h)
         na, nt = self.na, targets.shape[0]  # number of anchors, targets
         tcls, tbox, indices, anch = [], [], [], []
         gain = torch.ones(7, device=self.device)  # normalized to gridspace gain
         ai = torch.arange(na, device=self.device).float().view(na, 1).repeat(1, nt)  # same as .repeat_interleave(nt)
-        targets = torch.cat((targets.repeat(na, 1, 1), ai[..., None]), 2)  # append anchor indices
-
+        targets = torch.cat((targets.repeat(na, 1, 1), ai[..., None]),
+                            2)  # append anchor indices ai:3,num_target,1 ::: 0,0,0...,1,1,1...,2,2,2...
+        # target 3,num_target,7 7: '0',clsid,x,y,w,h,anchorlayerid(0,1,2)
         g = 0.5  # bias
         off = torch.tensor(
             [
@@ -197,7 +199,7 @@ class ComputeLoss:
         for i in range(self.nl):
             anchors, shape = self.anchors[i], p[i].shape
             gain[2:6] = torch.tensor(shape)[[3, 2, 3, 2]]  # xyxy gain
-
+            # 1,1,80,80,80,80,1
             # Match targets to anchors
             t = targets * gain  # shape(3,n,7)
             if nt:
@@ -205,7 +207,7 @@ class ComputeLoss:
                 r = t[..., 4:6] / anchors[:, None]  # wh ratio
                 j = torch.max(r, 1 / r).max(2)[0] < self.hyp['anchor_t']  # compare
                 # j = wh_iou(anchors, t[:, 4:6]) > model.hyp['iou_t']  # iou(3,n)=wh_iou(anchors(3,2), gwh(n,2))
-                t = t[j]  # filter
+                t = t[j]  # filter # t.reshape(-1,7)[j.flatten()]
 
                 # Offsets
                 gxy = t[:, 2:4]  # grid xy
