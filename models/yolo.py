@@ -14,8 +14,6 @@ import sys
 from copy import deepcopy
 from pathlib import Path
 
-import torch
-
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[1]  # YOLOv5 root directory
 if str(ROOT) not in sys.path:
@@ -41,7 +39,6 @@ class Detect(nn.Module):
     stride = None  # strides computed during build
     dynamic = False  # force grid reconstruction
     export = False  # export mode
-    ppfinal = False
 
     def __init__(self, nc=80, anchors=(), ch=(), inplace=True):  # detection layer
         super().__init__()
@@ -57,49 +54,27 @@ class Detect(nn.Module):
 
     def forward(self, x):
         z = []  # inference output
-        before_merge, strides, grids, anchor_grids = [], [], [], []
         for i in range(self.nl):
             x[i] = self.m[i](x[i])  # conv
             bs, _, ny, nx = x[i].shape  # x(bs,255,20,20) to x(bs,3,20,20,85)
-            if self.ppfinal:
-                x[i] = x[i].view(bs, self.na, self.no, ny * nx).transpose(2, 3).contiguous()
-                before_merge.append(x[i].sigmoid().view(bs, -1, self.no))
-                if self.dynamic or self.grid[i].shape[2:4] != torch.Size([ny, nx]):
-                    grid, anchor_grid = self._make_grid(nx, ny, i)
-                    grids.append(grid.view(bs, -1, 2))
-                    anchor_grids.append(anchor_grid.contiguous().view(bs, -1, 2))
-                    strides.append(self.stride[i].expand(bs, self.na * ny * nx, 2))
-            else:
-                x[i] = x[i].view(bs, self.na, self.no, ny, nx).permute(0, 1, 3, 4, 2).contiguous()
+            x[i] = x[i].view(bs, self.na, self.no, ny, nx).permute(0, 1, 3, 4, 2).contiguous()
 
-                if not self.training:  # inference
-                    if self.dynamic or self.grid[i].shape[2:4] != x[i].shape[2:4]:
-                        self.grid[i], self.anchor_grid[i] = self._make_grid(nx, ny, i)
+            if not self.training:  # inference
+                if self.dynamic or self.grid[i].shape[2:4] != x[i].shape[2:4]:
+                    self.grid[i], self.anchor_grid[i] = self._make_grid(nx, ny, i)
 
-                    y = x[i].sigmoid()
-                    if self.inplace:
-                        y[..., 0:2] = (y[..., 0:2] * 2 + self.grid[i]) * self.stride[i]  # xy
-                        y[..., 2:4] = (y[..., 2:4] * 2) ** 2 * self.anchor_grid[i]  # wh
-                    else:  # for YOLOv5 on AWS Inferentia https://github.com/ultralytics/yolov5/pull/2953
-                        xy, wh, conf = y.split((2, 2, self.nc + 1), 4)  # y.tensor_split((2, 4, 5), 4)  # torch 1.8.0
-                        xy = (xy * 2 + self.grid[i]) * self.stride[i]  # xy
-                        wh = (wh * 2) ** 2 * self.anchor_grid[i]  # wh
-                        y = torch.cat((xy, wh, conf), 4)
-                    z.append(y.view(bs, -1, self.no))
-        if self.ppfinal:
-            merged = torch.cat(before_merge, 1)
-            grids = torch.cat(grids, 1)
-            anchor_grids = torch.cat(anchor_grids, 1)
-            strides = torch.cat(strides, 1)
-            xy, wh, conf = merged.split((2, 2, self.nc + 1), 2)
-            xy = (xy * 2 + grids) * strides
-            wh = (wh * 2) ** 2 * anchor_grids
-            z = [xy, wh, conf]
-            out = (torch.cat(z, 2),)
-        else:
-            out = (torch.cat(z, 1),)
+                y = x[i].sigmoid()
+                if self.inplace:
+                    y[..., 0:2] = (y[..., 0:2] * 2 + self.grid[i]) * self.stride[i]  # xy
+                    y[..., 2:4] = (y[..., 2:4] * 2) ** 2 * self.anchor_grid[i]  # wh
+                else:  # for YOLOv5 on AWS Inferentia https://github.com/ultralytics/yolov5/pull/2953
+                    xy, wh, conf = y.split((2, 2, self.nc + 1), 4)  # y.tensor_split((2, 4, 5), 4)  # torch 1.8.0
+                    xy = (xy * 2 + self.grid[i]) * self.stride[i]  # xy
+                    wh = (wh * 2) ** 2 * self.anchor_grid[i]  # wh
+                    y = torch.cat((xy, wh, conf), 4)
+                z.append(y.view(bs, -1, self.no))
 
-        return x if self.training else out if self.export else (torch.cat(z, 1), x)
+        return x if self.training else (torch.cat(z, 1),) if self.export else (torch.cat(z, 1), x)
 
     def _make_grid(self, nx=20, ny=20, i=0, torch_1_10=check_version(torch.__version__, '1.10.0')):
         d = self.anchors[i].device
@@ -364,11 +339,11 @@ if __name__ == '__main__':
 
     # s = 'exp/yolov5x6_4up.yaml'                           # YOLOv5x6_4up summary: 845 layers, 142577475 parameters, 142577475 gradients, 228.3 GFLOPs
     # s = 'hub/yolov5x6.yaml'                               # YOLOv5x6 summary: 733 layers, 140794780 parameters, 140794780 gradients, 210.5 GFLOPs
-    s = 'exp/yolov5x6_4up_large_bifpn.yaml'  # YOLOv5x6_4up_large_bifpn summary: 824 layers, 117698356 parameters, 117698356 gradients
-    # s = 'exp/yolov5x6_4up_large.yaml'                     # YOLOv5x6_4up_large summary: 789 layers, 117690300 parameters, 117690300 gradients
+    # s = 'exp/yolov5x6_4up_large_bifpn.yaml'  # YOLOv5x6_4up_large_bifpn summary: 824 layers, 117698356 parameters, 117698356 gradients
+    s = 'exp/yolov5x6_4up_large.yaml'                     # YOLOv5x6_4up_large summary: 789 layers, 117690300 parameters, 117690300 gradients
     opt.cfg = s
     # Create model
-    im = torch.rand(opt.batch_size, 3, 640, 640).to(device)
+    im = torch.rand(opt.batch_size, 3, 1600, 1600).to(device)
     model = Model(opt.cfg).to(device)
 
     # Options
