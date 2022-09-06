@@ -338,11 +338,11 @@ if __name__ == '__main__':
     device = select_device(opt.device)
 
     # s = 'exp/yolov5x6_4up_huge.yaml'                           # YOLOv5x6_4up summary: 845 layers, 142577475 parameters, 142577475 gradients, 228.3 GFLOPs
-    # s = 'hub/yolov5x6.yaml'                               # YOLOv5x6 summary: 733 layers, 140794780 parameters, 140794780 gradients, 210.5 GFLOPs
+    s = 'hub/yolov5x6.yaml'                               # YOLOv5x6 summary: 733 layers, 140794780 parameters, 140794780 gradients, 210.5 GFLOPs
     # s = 'exp/yolov5x6_4up_large_bifpn.yaml'  # YOLOv5x6_4up_large_bifpn summary: 824 layers, 117698356 parameters, 117698356 gradients
     # s = 'exp/yolov5x6_4up_large.yaml'                     # YOLOv5x6_4up_large summary: 789 layers, 117690300 parameters, 117690300 gradients
     # s = 'exp/yolov5x6_bifpn.yaml'
-    s = 'exp/yolov5x6_4up_huge_bifpn.yaml'
+    # s = 'exp/yolov5x6_4up_huge_bifpn.yaml'
     opt.cfg = s
     # Create model
     im = torch.rand(opt.batch_size, 3, 1600, 1600).to(device)
