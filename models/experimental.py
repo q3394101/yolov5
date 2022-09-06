@@ -121,7 +121,7 @@ class Concat_bifpn(nn.Module):
         self.w3_weight = nn.Parameter(torch.ones(3, dtype=torch.float32), requires_grad=True)
         self.epsilon = 1e-5
         self.conv = Conv(c1, c2, 1, 1, 0)
-        self.act = nn.ReLU()
+        self.act = nn.SiLU()
 
     def forward(self, x):  # mutil-layer 1-3 layers #ADD or Concat
         if len(x) == 2:
