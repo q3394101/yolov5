@@ -327,8 +327,8 @@ def parse_model(d, ch):  # model_dict, input_channels(3)
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--cfg', type=str, default='yolov5s.yaml', help='model.yaml')
-    parser.add_argument('--batch-size', type=int, default=1, help='total batch size for all GPUs')
-    parser.add_argument('--device', default='', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
+    parser.add_argument('--batch-size', type=int, default=2, help='total batch size for all GPUs')
+    parser.add_argument('--device', default='0', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
     parser.add_argument('--profile', action='store_true', help='profile model speed')
     parser.add_argument('--line-profile', action='store_true', help='profile model speed layer by layer')
     parser.add_argument('--test', action='store_true', help='test all yolo*.yaml')
@@ -337,10 +337,12 @@ if __name__ == '__main__':
     print_args(vars(opt))
     device = select_device(opt.device)
 
-    s = 'exp/yolov5x6_4up_huge.yaml'                           # YOLOv5x6_4up summary: 845 layers, 142577475 parameters, 142577475 gradients, 228.3 GFLOPs
+    # s = 'exp/yolov5x6_4up_huge.yaml'                           # YOLOv5x6_4up summary: 845 layers, 142577475 parameters, 142577475 gradients, 228.3 GFLOPs
     # s = 'hub/yolov5x6.yaml'                               # YOLOv5x6 summary: 733 layers, 140794780 parameters, 140794780 gradients, 210.5 GFLOPs
     # s = 'exp/yolov5x6_4up_large_bifpn.yaml'  # YOLOv5x6_4up_large_bifpn summary: 824 layers, 117698356 parameters, 117698356 gradients
     # s = 'exp/yolov5x6_4up_large.yaml'                     # YOLOv5x6_4up_large summary: 789 layers, 117690300 parameters, 117690300 gradients
+    # s = 'exp/yolov5x6_bifpn.yaml'
+    s = 'exp/yolov5x6_4up_huge_bifpn.yaml'
     opt.cfg = s
     # Create model
     im = torch.rand(opt.batch_size, 3, 1600, 1600).to(device)
