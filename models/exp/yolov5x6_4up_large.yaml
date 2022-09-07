@@ -60,7 +60,7 @@ head:
 
    [-1, 1, Conv, [768, 3, 2]],  #                   50
    [[-1, 8, 15], 1, Concat, [1]],  # cat head P4    50
-   [-1, 3, C3, [1152, False]],  # 36 (P5/32-large)   50
+   [-1, 3, C3, [1152, False]],  # 36 (P5/32-large)  50
    #
    [[27, 30, 33, 36], 1, Detect, [nc, anchors]],  # Detect(P2, P3, P4, P5)
   ]

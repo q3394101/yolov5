@@ -280,7 +280,7 @@ def model_info(model, verbose=False, imgsz=640):
 
     try:  # FLOPs
         p = next(model.parameters())
-        stride = max(int(model.stride.max()), 32) if hasattr(model, 'stride') else 32  # max stride
+        stride = max(int(model.stride.max()), 64) if hasattr(model, 'stride') else 64  # max stride
         im = torch.empty((1, p.shape[1], stride, stride), device=p.device)  # input image in BCHW format
         flops = thop.profile(deepcopy(model), inputs=(im,), verbose=False)[0] / 1E9 * 2  # stride GFLOPs
         imgsz = imgsz if isinstance(imgsz, list) else [imgsz, imgsz]  # expand if int/float
