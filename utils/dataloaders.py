@@ -26,6 +26,7 @@ import torchvision
 import yaml
 from PIL import ExifTags, Image, ImageOps
 from torch.utils.data import DataLoader, Dataset, dataloader, distributed
+from torch.utils.data.sampler import WeightedRandomSampler
 from tqdm import tqdm
 
 from utils.augmentations import (Albumentations, augment_hsv, classify_albumentations, classify_transforms, copy_paste,
@@ -99,6 +100,51 @@ def seed_worker(worker_id):
     random.seed(worker_seed)
 
 
+def create_weighted_sampler(dataset):
+    labels_per_class = [label[:, 0].tolist() for label in dataset.labels if label.shape[0] > 0]
+    # flatten 2d array into 1d: https://stackoverflow.com/questions/29244286/how-to-flatten-a-2d-list-to-1d-without-using-numpy
+    labels_per_class = [j for sub in labels_per_class for j in sub]
+    # labels_per_class = sum(labels_per_class, [])
+
+    labels_per_class = np.array(labels_per_class)
+
+    background_count = len([1 for label in dataset.labels if label.shape[0] == 0])
+
+    unique_classes, counts = np.unique(labels_per_class, return_counts=True)
+
+    # = counts / (np.sum(counts) + background_count)
+    # normalized_background = background_count / (np.sum(counts) + background_count)
+
+    weight_cls = 1 / counts
+
+    # create a dictionary for the weight of each class
+    # dict(zip(unique_classes,weight_cls))
+    weight_dict = {}
+    for _cls, weight in zip(unique_classes, weight_cls):
+        weight_dict[_cls] = weight
+
+    weight_background = 1 / background_count
+
+    final_weights = []
+    for label in dataset.labels:
+        if label.shape[0] == 0:
+            final_weights.append(weight_background)
+        else:
+            # use weighted sum of labels for weight in case there are multiple labels for the same image
+            label_classes = np.unique(label[:, 0]).tolist()
+            values = []
+            for cls_ in label_classes:
+                values.append(weight_dict[cls_])
+            # values = list(map(lambda x:weight_dict[x],label_classes))
+            # np.mean(list(map(lambda x:weight_dict[x],label_classes)))
+
+            final_weights.append(sum(values) / len(values))
+
+    final_weights = np.array(final_weights)
+    # you can set the num_samples argument to anything. It basically changes your iteration count in every epoch
+    return WeightedRandomSampler(weights=torch.from_numpy(final_weights), num_samples=len(final_weights))
+
+
 def create_dataloader(path,
                       imgsz,
                       batch_size,
@@ -114,7 +160,9 @@ def create_dataloader(path,
                       image_weights=False,
                       quad=False,
                       prefix='',
-                      shuffle=False):
+                      shuffle=False,
+                      validation=False,
+                      weighted_sampler=False):
     if rect and shuffle:
         LOGGER.warning('WARNING: --rect is incompatible with DataLoader shuffle, setting shuffle=False')
         shuffle = False
@@ -137,6 +185,10 @@ def create_dataloader(path,
     nd = torch.cuda.device_count()  # number of CUDA devices
     nw = min([os.cpu_count() // max(nd, 1), batch_size if batch_size > 1 else 0, workers])  # number of workers
     sampler = None if rank == -1 else distributed.DistributedSampler(dataset, shuffle=shuffle)
+    if not validation and weighted_sampler:
+        # weighted sampler should not be called on validation as this will report wrong results
+        assert rank == -1, "Currently multi-GPU Support is not enabled when using weighted sampler"
+        sampler = create_weighted_sampler(dataset)
     loader = DataLoader if image_weights else InfiniteDataLoader  # only DataLoader allows for attribute updates
     generator = torch.Generator()
     generator.manual_seed(0)
