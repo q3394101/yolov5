@@ -849,3 +849,73 @@ class Classify(nn.Module):
         if isinstance(x, list):
             x = torch.cat(x, 1)
         return self.linear(self.drop(self.pool(self.conv(x)).flatten(1)))
+
+
+# ------------------------------------------------------------------------------------------------------ #
+# CBAM
+class ChannelAttention(nn.Module):
+
+    def __init__(self, in_planes, ratio=16):
+        super().__init__()
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.max_pool = nn.AdaptiveMaxPool2d(1)
+
+        self.fc1 = nn.Conv2d(in_planes, in_planes // ratio, 1, bias=False)
+        self.relu1 = nn.ReLU()
+        self.fc2 = nn.Conv2d(in_planes // ratio, in_planes, 1, bias=False)
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+        avg_out = self.fc2(self.relu1(self.fc1(self.avg_pool(x))))
+        max_out = self.fc2(self.relu1(self.fc1(self.max_pool(x))))
+        out = avg_out + max_out
+        return self.sigmoid(out)
+
+
+class SpatialAttention(nn.Module):
+
+    def __init__(self, kernel_size=7):
+        super().__init__()
+        self.conv1 = nn.Conv2d(2, 1, kernel_size, padding=3,
+                               bias=False)  # kernel size = 7 Padding is 3: (n - 7 + 1) + 2P = n
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+        avg_out = torch.mean(x, dim=1, keepdim=True)
+        max_out, _ = torch.max(x, dim=1, keepdim=True)
+        x = torch.cat([avg_out, max_out], dim=1)
+        x = self.conv1(x)
+        return self.sigmoid(x)
+
+
+class CBAM(nn.Module):
+
+    def __init__(self, channelIn, channelOut=None):
+        super().__init__()
+        self.channel_attention = ChannelAttention(channelIn)
+        self.spatial_attention = SpatialAttention()
+
+    def forward(self, x):
+        out = self.channel_attention(x) * x
+        # print('outchannels:{}'.format(out.shape))
+        out = self.spatial_attention(out) * out
+        return out
+
+
+# SE-Net Adaptive avg pooling --> fc --> fc --> Sigmoid
+class SeBlock(nn.Module):
+
+    def __init__(self, in_channel, reduction=4):
+        super().__init__()
+        self.Squeeze = nn.AdaptiveAvgPool2d(1)
+
+        self.Excitation = nn.Sequential()
+        self.Excitation.add_module('FC1', nn.Conv2d(in_channel, in_channel // reduction, kernel_size=1))  # 1*1卷积与此效果相同
+        self.Excitation.add_module('ReLU', nn.ReLU())
+        self.Excitation.add_module('FC2', nn.Conv2d(in_channel // reduction, in_channel, kernel_size=1))
+        self.Excitation.add_module('Sigmoid', nn.Sigmoid())
+
+    def forward(self, x):
+        y = self.Squeeze(x)
+        ouput = self.Excitation(y)
+        return x * (ouput.expand_as(x))
