@@ -919,3 +919,40 @@ class SeBlock(nn.Module):
         y = self.Squeeze(x)
         ouput = self.Excitation(y)
         return x * (ouput.expand_as(x))
+
+
+# SwinTransformer
+from .swin import SwinTransformerLayer
+
+
+class SwinTransformerBlock(nn.Module):
+
+    def __init__(self, c1, c2, num_heads, num_layers, window_size=8):
+        super().__init__()
+        self.conv = None
+        if c1 != c2:
+            self.conv = Conv(c1, c2)
+
+        # remove input_resolution
+        self.blocks = nn.Sequential(*[
+            SwinTransformerLayer(dim=c2,
+                                 num_heads=num_heads,
+                                 window_size=window_size,
+                                 shift_size=0 if (i % 2 == 0) else window_size // 2) for i in range(num_layers)])
+
+    def forward(self, x):
+        if self.conv is not None:
+            x = self.conv(x)
+        x = self.blocks(x)
+        return x
+
+
+# C3STR
+# num_heads=[3, 6, 12, 24] --> c_ // 32
+class C3STR(C3):
+    # C3 module with SwinTransformerBlock()
+    def __init__(self, c1, c2, n=1, shortcut=True, g=1, e=0.5):
+        super().__init__(c1, c2, n, shortcut, g, e)
+        c_ = int(c2 * e)
+        num_heads = c_ // 32
+        self.m = SwinTransformerBlock(c_, c_, num_heads, n)
