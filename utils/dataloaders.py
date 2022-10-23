@@ -120,23 +120,42 @@ def create_dataloader(path,
         LOGGER.warning('WARNING ⚠️ --rect is incompatible with DataLoader shuffle, setting shuffle=False')
         shuffle = False
     with torch_distributed_zero_first(rank):  # init dataset *.cache only once if DDP
-        dataset = LoadImagesAndLabels(
-            path,
-            imgsz,
-            batch_size,
-            augment=augment,  # augmentation
-            hyp=hyp,  # hyperparameters
-            rect=rect,  # rectangular batches
-            cache_images=cache,
-            single_cls=single_cls,
-            stride=int(stride),
-            pad=pad,
-            image_weights=image_weights,
-            prefix=prefix)
+        if hyp.get('class_balance', False):
+            dataset = ClassBalancedDataset(
+                path,
+                imgsz,
+                batch_size,
+                repeat_thr=hyp.get('repeat_thr', 0.1),
+                no_repeat=hyp.get('no_repeat', True),
+                repeat_no_moscia=hyp.get('repeat_no_moscia', True),
+                augment=augment,  # augmentation
+                hyp=hyp,  # hyperparameters
+                rect=rect,  # rectangular batches
+                cache_images=cache,
+                single_cls=single_cls,
+                stride=int(stride),
+                pad=pad,
+                image_weights=image_weights,
+                prefix=prefix)
+        else:
+            dataset = LoadImagesAndLabels(
+                path,
+                imgsz,
+                batch_size,
+                augment=augment,  # augmentation
+                hyp=hyp,  # hyperparameters
+                rect=rect,  # rectangular batches
+                cache_images=cache,
+                single_cls=single_cls,
+                stride=int(stride),
+                pad=pad,
+                image_weights=image_weights,
+                prefix=prefix)
 
     batch_size = min(batch_size, len(dataset))
     nd = torch.cuda.device_count()  # number of CUDA devices
     nw = min([os.cpu_count() // max(nd, 1), batch_size if batch_size > 1 else 0, workers])  # number of workers
+    nw = 0
     sampler = None if rank == -1 else distributed.DistributedSampler(dataset, shuffle=shuffle)
     loader = DataLoader if image_weights else InfiniteDataLoader  # only DataLoader allows for attribute updates
     generator = torch.Generator()
@@ -1184,3 +1203,61 @@ def create_classification_dataloader(path,
                               pin_memory=PIN_MEMORY,
                               worker_init_fn=seed_worker,
                               generator=generator)  # or DataLoader(persistent_workers=True)
+
+
+class ClassBalancedDataset(LoadImagesAndLabels):
+
+    def __init__(self, *args, repeat_thr=0.1, no_repeat=True, repeat_no_moscia=True, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.repeat_thr = repeat_thr
+        self.no_repeat = no_repeat
+        self.repeat_no_moscia = repeat_no_moscia
+        self.repeat_record = list(range(self.n))
+        self.orin_moscia = self.mosaic
+        self.repeat_indices = self.indexRepeat()
+
+    def indexRepeat(self):
+        labels_record = []
+        # TODO : background_record
+        background_record = []
+        for label in self.labels:
+            if label.shape[0]:
+                labels_one_image = label[:, 0].astype(np.int64)
+                if self.no_repeat:
+                    labels_one_image = np.unique(labels_one_image)
+                labels_record.extend(labels_one_image.tolist())
+            else:
+                background_record.append(1)
+
+        unique_classes, counts = np.unique(labels_record, return_counts=True)
+        category_freq = dict(zip(unique_classes.tolist(), (counts / self.n).tolist()))
+
+        category_repeat = dict(map(lambda x: (x[0], max(1.0, math.sqrt(self.repeat_thr / x[1]))),
+                                   category_freq.items()))
+
+        repeat_factors = []
+        for label in self.labels:
+            no_repeat_labels = np.unique(label[:, 0].astype(np.int64))
+            repeat_factor = 1
+            if no_repeat_labels.shape[0]:
+                repeat_factor = max({category_repeat[cat_id] for cat_id in no_repeat_labels})
+            repeat_factors.append(repeat_factor)
+
+        repeat_indices = []
+        for dataset_idx, repeat_factor in enumerate(repeat_factors):
+            repeat_indices.extend([dataset_idx] * math.ceil(repeat_factor))
+        return repeat_indices
+
+    def __getitem__(self, idx):
+        ori_index = self.repeat_indices[idx]
+        if ori_index in self.repeat_record:
+            self.repeat_record.remove(ori_index)
+        else:
+            if self.repeat_no_moscia:
+                self.mosaic = False
+        items = super().__getitem__(ori_index)
+        self.mosaic = self.orin_moscia
+        return items
+
+    def __len__(self):
+        return len(self.repeat_indices)
