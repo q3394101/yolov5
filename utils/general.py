@@ -23,8 +23,9 @@ from itertools import repeat
 from multiprocessing.pool import ThreadPool
 from pathlib import Path
 from subprocess import check_output
+from tarfile import is_tarfile
 from typing import Optional
-from zipfile import ZipFile
+from zipfile import ZipFile, is_zipfile
 
 import cv2
 import IPython
@@ -426,12 +427,12 @@ def check_file(file, suffix=''):
     # Search/download file (if necessary) and return path
     check_suffix(file, suffix)  # optional
     file = str(file)  # convert to str()
-    if Path(file).is_file() or not file:  # exists
+    if os.path.isfile(file) or not file:  # exists
         return file
     elif file.startswith(('http:/', 'https:/')):  # download
         url = file  # warning: Pathlib turns :// -> :/
         file = Path(urllib.parse.unquote(file).split('?')[0]).name  # '%2F' to '/', split https://url.com/file.txt?auth
-        if Path(file).is_file():
+        if os.path.isfile(file):
             LOGGER.info(f'Found {url} locally at {file}')  # file already exists
         else:
             LOGGER.info(f'Downloading {url} to {file}...')
@@ -465,7 +466,7 @@ def check_dataset(data, autodownload=True):
 
     # Download (optional)
     extract_dir = ''
-    if isinstance(data, (str, Path)) and str(data).endswith('.zip'):  # i.e. gs://bucket/dir/coco128.zip
+    if isinstance(data, (str, Path)) and (is_zipfile(data) or is_tarfile(data)):
         download(data, dir=f'{DATASETS_DIR}/{Path(data).stem}', unzip=True, delete=False, curl=False, threads=1)
         data = next((DATASETS_DIR / Path(data).stem).rglob('*.yaml'))
         extract_dir, autodownload = data.parent, False
@@ -586,7 +587,7 @@ def download(url, dir='.', unzip=True, delete=True, curl=False, threads=1, retry
     def download_one(url, dir):
         # Download 1 file
         success = True
-        if Path(url).is_file():
+        if os.path.isfile(url):
             f = Path(url)  # filename
         else:  # does not exist
             f = dir / Path(url).name
@@ -607,11 +608,11 @@ def download(url, dir='.', unzip=True, delete=True, curl=False, threads=1, retry
                 else:
                     LOGGER.warning(f'❌ Failed to download {url}...')
 
-        if unzip and success and f.suffix in ('.zip', '.tar', '.gz'):
+        if unzip and success and (f.suffix == '.gz' or is_zipfile(f) or is_tarfile(f)):
             LOGGER.info(f'Unzipping {f}...')
-            if f.suffix == '.zip':
+            if is_zipfile(f):
                 unzip_file(f, dir)  # unzip
-            elif f.suffix == '.tar':
+            elif is_tarfile(f):
                 os.system(f'tar xf {f} --directory {f.parent}')  # unzip
             elif f.suffix == '.gz':
                 os.system(f'tar xfz {f} --directory {f.parent}')  # unzip
