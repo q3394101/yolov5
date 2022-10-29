@@ -115,12 +115,13 @@ def create_dataloader(path,
                       image_weights=False,
                       quad=False,
                       prefix='',
-                      shuffle=False):
+                      shuffle=False,
+                      istrain=True):
     if rect and shuffle:
         LOGGER.warning('WARNING ⚠️ --rect is incompatible with DataLoader shuffle, setting shuffle=False')
         shuffle = False
     with torch_distributed_zero_first(rank):  # init dataset *.cache only once if DDP
-        if hyp.get('class_balance', False):
+        if hyp.get('class_balance', False) and istrain:
             dataset = ClassBalancedDataset(
                 path,
                 imgsz,
