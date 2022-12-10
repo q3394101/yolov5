@@ -240,6 +240,8 @@ class LoadScreenshots:
 class LoadImages:
     # YOLOv5 image/video dataloader, i.e. `python detect.py --source image.jpg/vid.mp4`
     def __init__(self, path, img_size=640, stride=32, auto=True, transforms=None, vid_stride=1):
+        if isinstance(path, str) and Path(path).suffix == ".txt":  # *.txt file with img/vid/dir on each line
+            path = Path(path).read_text().rsplit()
         files = []
         for p in sorted(path) if isinstance(path, (list, tuple)) else [path]:
             p = str(Path(p).resolve())
@@ -340,7 +342,7 @@ class LoadImages:
 
 class LoadStreams:
     # YOLOv5 streamloader, i.e. `python detect.py --source 'rtsp://example.com/media.mp4'  # RTSP, RTMP, HTTP streams`
-    def __init__(self, sources='streams.txt', img_size=640, stride=32, auto=True, transforms=None, vid_stride=1):
+    def __init__(self, sources='file.streams', img_size=640, stride=32, auto=True, transforms=None, vid_stride=1):
         torch.backends.cudnn.benchmark = True  # faster for fixed-size inference
         self.mode = 'stream'
         self.img_size = img_size
@@ -539,8 +541,6 @@ class LoadImagesAndLabels(Dataset):
                     self.segments[i] = segment[j]
             if single_cls:  # single-class training, merge all classes into 0
                 self.labels[i][:, 0] = 0
-                if segment:
-                    self.segments[i][:, 0] = 0
 
         # Rectangular Training
         if self.rect:
