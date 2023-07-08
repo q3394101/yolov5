@@ -182,6 +182,9 @@ def export_onnx(model, im, file, opset, dynamic, simplify, prefix=colorstr("ONNX
             dynamic["output1"] = {0: "batch", 2: "mask_height", 3: "mask_width"}  # shape(1,32,160,160)
         elif isinstance(model, DetectionModel):
             dynamic["output0"] = {0: "batch", 1: "anchors"}  # shape(1,25200,85)
+    num = len(model(im))
+    if num != len(output_names):
+        output_names = [f'output_{i}' for i in range(num)]
 
     torch.onnx.export(
         model.cpu() if dynamic else model,  # --dynamic only compatible with cpu

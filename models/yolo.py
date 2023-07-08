@@ -90,6 +90,9 @@ class Detect(nn.Module):
 
     def forward(self, x):
         """Processes input through YOLOv5 layers, altering shape for detection: `x(bs, 3, ny, nx, 85)`."""
+        if self.export:
+            return self.forward_export(x)
+
         z = []  # inference output
         for i in range(self.nl):
             x[i] = self.m[i](x[i])  # conv
@@ -125,6 +128,13 @@ class Detect(nn.Module):
         anchor_grid = (self.anchors[i] * self.stride[i]).view((1, self.na, 1, 1, 2)).expand(shape)
         return grid, anchor_grid
 
+    def forward_export(self, x):
+        z = []  # inference output
+        for i in range(self.nl):
+            y = self.m[i](x[i])  # conv
+            z.append(y.permute(0, 2, 3, 1).contiguous())
+        return tuple(z)
+
 
 class Segment(Detect):
     # YOLOv5 Segment head for segmentation models
@@ -142,9 +152,21 @@ class Segment(Detect):
         """Processes input through the network, returning detections and prototypes; adjusts output based on
         training/export mode.
         """
+        if self.export:
+            return self.forward_export(x)
+
         p = self.proto(x[0])
         x = self.detect(self, x)
         return (x, p) if self.training else (x[0], p) if self.export else (x[0], p, x[1])
+
+    def forward_export(self, x):
+        p = self.proto(x[0])
+        z = []  # inference output
+        for i in range(self.nl):
+            y = self.m[i](x[i])  # conv
+            z.append(y.permute(0, 2, 3, 1).contiguous())
+        z.append(p)
+        return tuple(z)
 
 
 class BaseModel(nn.Module):
