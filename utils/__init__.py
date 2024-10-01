@@ -1,4 +1,4 @@
-# YOLOv5 🚀 by Ultralytics, AGPL-3.0 license
+# Ultralytics YOLOv5 🚀, AGPL-3.0 license
 """utils/initialization."""
 
 import contextlib
@@ -12,7 +12,8 @@ def emojis(str=""):
 
 
 class TryExcept(contextlib.ContextDecorator):
-    # YOLOv5 TryExcept class. Usage: @TryExcept() decorator or 'with TryExcept():' context manager
+    """A context manager and decorator for error handling that prints an optional message with emojis on exception."""
+
     def __init__(self, msg=""):
         """Initializes TryExcept with an optional message, used as a decorator or context manager for error handling."""
         self.msg = msg
@@ -34,6 +35,7 @@ def threaded(func):
     """Decorator @threaded to run a function in a separate thread, returning the thread instance."""
 
     def wrapper(*args, **kwargs):
+        """Runs the decorated function in a separate daemon thread and returns the thread instance."""
         thread = threading.Thread(target=func, args=args, kwargs=kwargs, daemon=True)
         thread.start()
         return thread

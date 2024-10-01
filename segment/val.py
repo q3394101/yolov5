@@ -1,4 +1,4 @@
-# YOLOv5 🚀 by Ultralytics, AGPL-3.0 license
+# Ultralytics YOLOv5 🚀, AGPL-3.0 license
 """
 Validate a trained YOLOv5 segment model on a segment dataset.
 
@@ -91,6 +91,7 @@ def save_one_json(predn, jdict, path, class_map, pred_masks):
     from pycocotools.mask import encode
 
     def single_encode(x):
+        """Encodes binary mask arrays into RLE (Run-Length Encoding) format for JSON serialization."""
         rle = encode(np.asarray(x[:, :, None], order="F", dtype="uint8"))[0]
         rle["counts"] = rle["counts"].decode("utf-8")
         return rle
@@ -120,7 +121,7 @@ def process_batch(detections, labels, iouv, pred_masks=None, gt_masks=None, over
         detections (array[N, 6]), x1, y1, x2, y2, conf, class
         labels (array[M, 5]), class, x1, y1, x2, y2
     Returns:
-        correct (array[N, 10]), for 10 IoU levels
+        correct (array[N, 10]), for 10 IoU levels.
     """
     if masks:
         if overlap:
@@ -183,6 +184,9 @@ def run(
     compute_loss=None,
     callbacks=Callbacks(),
 ):
+    """Validates a YOLOv5 segmentation model on specified dataset, producing metrics, plots, and optional JSON
+    output.
+    """
     if save_json:
         check_requirements("pycocotools>=2.0.6")
         process = process_mask_native  # more accurate

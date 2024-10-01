@@ -1,3 +1,5 @@
+# Ultralytics YOLOv5 🚀, AGPL-3.0 license
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -10,7 +12,8 @@ from .general import crop_mask
 
 
 class ComputeLoss:
-    # Compute losses
+    """Computes the YOLOv5 model's loss components including classification, objectness, box, and mask losses."""
+
     def __init__(self, model, autobalance=False, overlap=False):
         """Initializes the compute loss function for YOLOv5 models with options for autobalancing and overlap
         handling.

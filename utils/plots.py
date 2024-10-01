@@ -1,4 +1,4 @@
-# YOLOv5 🚀 by Ultralytics, AGPL-3.0 license
+# Ultralytics YOLOv5 🚀, AGPL-3.0 license
 """Plotting utils."""
 
 import contextlib
@@ -29,7 +29,8 @@ matplotlib.use("Agg")  # for writing to files only
 
 
 class Colors:
-    # Ultralytics color palette https://ultralytics.com/
+    """Provides an RGB color palette derived from Ultralytics color scheme for visualization tasks."""
+
     def __init__(self):
         """
         Initializes the Colors class with a palette derived from Ultralytics color scheme, converting hex codes to RGB.
@@ -81,7 +82,7 @@ def feature_visualization(x, module_type, stage, n=32, save_dir=Path("runs/detec
     module_type:    Module type
     stage:          Module stage within model
     n:              Maximum number of feature maps to plot
-    save_dir:       Directory to save results
+    save_dir:       Directory to save results.
     """
     if ("Detect" not in module_type) and (
         "Segment" not in module_type
@@ -124,6 +125,9 @@ def butter_lowpass_filtfilt(data, cutoff=1500, fs=50000, order=5):
 
     # https://stackoverflow.com/questions/28536191/how-to-filter-smooth-with-scipy-numpy
     def butter_lowpass(cutoff, fs, order):
+        """Applies a low-pass Butterworth filter to a signal with specified cutoff frequency, sample rate, and filter
+        order.
+        """
         nyq = 0.5 * fs
         normal_cutoff = cutoff / nyq
         return butter(order, normal_cutoff, btype="low", analog=False)

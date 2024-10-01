@@ -1,4 +1,4 @@
-# YOLOv5 🚀 by Ultralytics, AGPL-3.0 license
+# Ultralytics YOLOv5 🚀, AGPL-3.0 license
 """
 Train a YOLOv5 classifier model on a classification dataset.
 
@@ -109,7 +109,7 @@ def train(opt, device):
             if str(data) == "imagenet":
                 subprocess.run(["bash", str(ROOT / "data/scripts/get_imagenet.sh")], shell=True, check=True)
             else:
-                url = f"https://github.com/ultralytics/yolov5/releases/download/v1.0/{data}.zip"
+                url = f"https://github.com/ultralytics/assets/releases/download/v0.0.0/{data}.zip"
                 download(url, dir=data_dir.parent)
             s = f"Dataset download success ✅ ({time.time() - t:.1f}s), saved to {colorstr('bold', data_dir)}\n"
             LOGGER.info(s)
@@ -177,8 +177,12 @@ def train(opt, device):
 
     # Scheduler
     lrf = 0.01  # final lr (fraction of lr0)
+
     # lf = lambda x: ((1 + math.cos(x * math.pi / epochs)) / 2) * (1 - lrf) + lrf  # cosine
-    lf = lambda x: (1 - x / epochs) * (1 - lrf) + lrf  # linear
+    def lf(x):
+        """Linear learning rate scheduler function, scaling learning rate from initial value to `lrf` over `epochs`."""
+        return (1 - x / epochs) * (1 - lrf) + lrf  # linear
+
     scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lf)
     # scheduler = lr_scheduler.OneCycleLR(optimizer, max_lr=lr0, total_steps=epochs, pct_start=0.1,
     #                                    final_div_factor=1 / 25 / lrf)
